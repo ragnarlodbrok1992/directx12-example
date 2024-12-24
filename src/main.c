@@ -73,7 +73,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
       DispatchMessage(&msg);
     }
   }
-
   return (int) msg.wParam;
 }
 
