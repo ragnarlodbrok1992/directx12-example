@@ -5,3 +5,6 @@ build_asm/
 # C-Tags
 tags
 
+
+# Remedy BG sessions
+*.rdbg

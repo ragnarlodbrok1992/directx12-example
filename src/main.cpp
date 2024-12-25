@@ -71,6 +71,27 @@ HANDLE m_fenceEvent;
 Microsoft::WRL::ComPtr<ID3D12Fence> m_fence;
 UINT64 m_fenceValue;
 
+// Shaders code
+const char* shadersCode = R"(
+  struct PSInput {
+    float4 position : SV_POSITION;
+    float4 color : COLOR;
+  };
+
+  PSInput VSMain(float4 position : POSITION, float4 color : COLOR) {
+    PSInput result;
+
+    result.position = position;
+    result.color = color;
+
+    return result;
+  }
+
+  float4 PSMain(PSInput input) : SV_TARGET {
+    return input.color;
+  }
+)";
+
 // Helper functions for C-->C++ interoperability by Microsoft
 inline void ThrowIfFailed(HRESULT hr) {
   if (FAILED(hr)) {
@@ -101,6 +122,24 @@ void GetHardwareAdapter(IDXGIFactory4* pFactory, IDXGIAdapter1** ppAdapter) {
       }
       pAdapter->Release();
   }
+}
+
+// Helper function - waiting for previous frame
+void WaitForPreviousFrame() {
+  // Waiting for the frame to complete before continuing is not the best practice (what if it never finishes?)
+
+  // Signal and icrement the fence value
+  const UINT64 fence = m_fenceValue;
+  ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), fence));
+  m_fenceValue++;
+
+  // Wait until the previous frame if finished
+  if (m_fence->GetCompletedValue() < fence) {
+    ThrowIfFailed(m_fence->SetEventOnCompletion(fence, m_fenceEvent));
+    WaitForSingleObject(m_fenceEvent, INFINITE);
+  }
+
+  m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -162,6 +201,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
   // Initialization - pipeline
   // Enabling debug layer - debug messages into parent process console
 #if defined(_DEBUG)
+#if 0 // This does not work in debugger for example, so we won't have fun with it
     AttachConsole(ATTACH_PARENT_PROCESS); // TODO: check if attaching to console fails
     FILE* fp;
     freopen_s(&fp, "CONOUT$", "w", stdout);
@@ -169,6 +209,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     freopen_s(&fp, "CONIN$", "w", stdin);
 
     printf("Debug enabled!\n"); // TODO: create more elaborate debug message with __FILE__ and __LINE__ if it's possible (maybe macro?)
+#endif
 #endif
 
   // Enabling the D3D12 debug layer
@@ -284,8 +325,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     UINT compileFlags = 0;
 #endif
 
-    ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"shaders.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr));
-    ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"shaders.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, nullptr));
+    ThrowIfFailed(D3DCompile(shadersCode, strlen(shadersCode), nullptr, nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr));
+    ThrowIfFailed(D3DCompile(shadersCode, strlen(shadersCode), nullptr, nullptr, nullptr, "PSMain", "vs_5_0", compileFlags, 0, &pixelShader, nullptr));
 
     // Define the vertex input layout
     D3D12_INPUT_ELEMENT_DESC inputElementDesc[] = {
@@ -331,6 +372,48 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     };
 
     const UINT vertexBufferSize = sizeof(triangleVertices);
+
+    // Note: using upload heaps to transfer static data like vert buffers is not recommended (then why is it in tutorial then?)
+    // Please read up on Default Heap usage.
+    // It is used for code simplicity (xD) and because there are few verts to transfer.
+    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
+    auto desc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
+    ThrowIfFailed(m_device->CreateCommittedResource(
+          &heapProps,
+          D3D12_HEAP_FLAG_NONE,
+          &desc,
+          D3D12_RESOURCE_STATE_GENERIC_READ,
+          nullptr,
+          IID_PPV_ARGS(&m_vertexBuffer)));
+
+    // Copy the triangle data to the vertex buffer
+    UINT8* pVertexDataBegin;
+    CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
+    ThrowIfFailed(m_vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
+    memcpy(pVertexDataBegin, triangleVertices, sizeof(triangleVertices));
+    m_vertexBuffer->Unmap(0, nullptr);
+
+    // Initialize the vertex buffer view
+    m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
+    m_vertexBufferView.StrideInBytes = sizeof(Vertex);
+    m_vertexBufferView.SizeInBytes = vertexBufferSize;
+  }
+
+  // Create synchronization objects and wait until assets have been uploaded to the GPU.
+  {
+    ThrowIfFailed(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
+    m_fenceValue = 1;
+
+    // Create an event handle to use for frame synchronization
+    m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    if (m_fenceEvent == nullptr) {
+      ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
+    }
+
+    // Wait for the command list to execute
+    // We are reusing the same command list in our main loop but for now
+    // we just wait for setup to complete before continuing
+    WaitForPreviousFrame();
   }
 
   // Main loop
@@ -344,7 +427,10 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
   }
 
   // All went well message for those pesky segfaults without notification on WinOS
+#if 0
   printf("All went well - goodbye...\n"); // TODO: This message interfere with normal console flow - fix that
+#endif
+
   return (int) msg.wParam;
 }
 

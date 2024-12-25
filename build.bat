@@ -6,6 +6,8 @@ set COMPILER="D:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\M
 set DIRECTX_HEADERS_INCLUDE_DIR="..\external\directx-headers\include"
 set DIRECTX_HEADERS_LIB_DIR="..\external\directx-headers\"
 
+set ASSETS_FOLDER="..\src\assets"
+
 echo Checking for build directory...
 
 IF NOT EXIST %BUILD_DIR% (
@@ -16,6 +18,12 @@ IF NOT EXIST %BUILD_DIR% (
 pushd %BUILD_DIR%
 
 echo Entering build directory..
+
+REM echo Copying assets folder...
+
+REM xcopy "%ASSETS_FOLDER%" "." /E /H /C /I /Y
+
+echo Compiling...
 
 %COMPILER% /EHsc /Zi^
   /DEBUG:FULL^
