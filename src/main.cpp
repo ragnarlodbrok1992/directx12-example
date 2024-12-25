@@ -238,7 +238,16 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
   // Initialization - frame resources
   {
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());   
+
+    // RTV for each frame
+    for (UINT n = 0; n < FRAME_COUNT; n++) {
+      ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
+      m_device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
+      rtvHandle.Offset(1, m_rtvDescriptorSize);
+    }
   }
+
+  ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
 
   // Loading assets - Hello World Triangle for now
 
