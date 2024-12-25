@@ -10,9 +10,12 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <stdint.h>
-#include <d3d12.h>
+// #include <d3d12.h>
 #include <dxgi1_6.h>
-#include <d3dcompiler.h>
+// #include <d3dcompiler.h>
+
+#include "directx/d3d12.h"
+#include "directx/d3dx12.h"
 #include <DirectXMath.h>
 
 #include <string>
@@ -191,22 +194,22 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
   }
   // Initialization - describing and creating the command queue
   D3D12_COMMAND_QUEUE_DESC queueDesc = {};
-  queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-  queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+  queueDesc.Flags                    = D3D12_COMMAND_QUEUE_FLAG_NONE;
+  queueDesc.Type                     = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
   ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
 
   // Initialization - describing and creating the swap chain
   DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
-  swapChainDesc.BufferCount = FRAME_COUNT;
-  swapChainDesc.BufferDesc.Width = m_width;
-  swapChainDesc.BufferDesc.Height = m_height;
-  swapChainDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-  swapChainDesc.OutputWindow = hwnd;
-  swapChainDesc.SampleDesc.Count = 1;
-  swapChainDesc.Windowed = TRUE;
+  swapChainDesc.BufferCount          = FRAME_COUNT;
+  swapChainDesc.BufferDesc.Width     = m_width;
+  swapChainDesc.BufferDesc.Height    = m_height;
+  swapChainDesc.BufferDesc.Format    = DXGI_FORMAT_R8G8B8A8_UNORM;
+  swapChainDesc.BufferUsage          = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+  swapChainDesc.SwapEffect           = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+  swapChainDesc.OutputWindow         = hwnd;
+  swapChainDesc.SampleDesc.Count     = 1;
+  swapChainDesc.Windowed             = TRUE;
 
   Microsoft::WRL::ComPtr<IDXGISwapChain> swapChain;
   ThrowIfFailed(factory->CreateSwapChain(
@@ -217,7 +220,27 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
   ThrowIfFailed(swapChain.As(&m_swapChain));
 
-  // Initialization - loading assets - Hello World Triangle for now
+  // Initialization - setting up fullscreen
+  ThrowIfFailed(factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER));
+  m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+
+  // Initialization - create descriptor heaps
+  {
+    D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+    rtvHeapDesc.NumDescriptors             = FRAME_COUNT;
+    rtvHeapDesc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+    rtvHeapDesc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    ThrowIfFailed(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
+
+    m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+  }
+
+  // Initialization - frame resources
+  {
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());   
+  }
+
+  // Loading assets - Hello World Triangle for now
 
   // Main loop
   MSG msg = {};
