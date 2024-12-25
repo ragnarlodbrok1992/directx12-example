@@ -44,6 +44,7 @@ static bool m_useWarpDevice = false; // WARP stands for Windows Advanced Rasteri
 // DirectX3D objects
 static UINT m_width = 1280;
 static UINT m_height = 720;
+static float m_aspectRatio = static_cast<float>(m_width) / static_cast<float>(m_height);
 static std::wstring name = L"Box Delivery - engine.";
 
 // Pipeline objects
@@ -298,17 +299,39 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     psoDesc.pRootSignature = m_rootSignature.Get();
     psoDesc.VS = {reinterpret_cast<UINT8*>(vertexShader->GetBufferPointer()), vertexShader->GetBufferSize()};
     psoDesc.PS = {reinterpret_cast<UINT8*>(pixelShader->GetBufferPointer()), pixelShader->GetBufferSize()};
-    // psoDesc.
-    // psoDesc.
-    // psoDesc.
-    // psoDesc.
-    // psoDesc.
-    // psoDesc.
-    // psoDesc.
-    // psoDesc.
-    // psoDesc.
+    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    psoDesc.DepthStencilState.DepthEnable = FALSE;
+    psoDesc.DepthStencilState.StencilEnable = FALSE;
+    psoDesc.SampleMask = UINT_MAX;
+    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    psoDesc.NumRenderTargets = 1;
+    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    psoDesc.SampleDesc.Count = 1;
+    ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
   }
 
+  // Create the command list
+  ThrowIfFailed(m_device->CreateCommandList(0,
+        D3D12_COMMAND_LIST_TYPE_DIRECT,
+        m_commandAllocator.Get(),
+        m_pipelineState.Get(),
+        IID_PPV_ARGS(&m_commandList)));
+
+  // Command lists are created in the recording state, but there is nothing to record yet. The main loop expects it to be close, so close it now
+  ThrowIfFailed(m_commandList->Close());
+
+  // Create the vertex buffer
+  {
+    // Define the geometry for a triangle
+    Vertex triangleVertices[] = {
+        {{0.0f, 0.25f    * m_aspectRatio, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {{0.25f, -0.25f  * m_aspectRatio, 0.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
+        {{-0.25f, -0.25f * m_aspectRatio, 0.0f}, {0.0f, 0.0f, 1.0f, 1.0f}}
+    };
+
+    const UINT vertexBufferSize = sizeof(triangleVertices);
+  }
 
   // Main loop
   MSG msg = {};
