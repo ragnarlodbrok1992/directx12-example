@@ -13,6 +13,10 @@
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <d3dcompiler.h>
+#include <DirectXMath.h>
+
+#include <string>
+#include <wrl.h>
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -21,11 +25,43 @@
 // Non defined keys definitions
 #define VK_Q 0x51
 
+// DirectX3D types
+struct Vertex {
+  DirectX::XMFLOAT3 positon;
+  DirectX::XMFLOAT4 color;
+};
+
 // DirectX3D variables
 #define FRAME_COUNT 2
 
 // DirectX3D objects
+static UINT width = 1280;
+static UINT height = 720;
+static std::wstring name = L"Box Delivery - engine.";
 
+// Pipeline objects
+D3D12_VIEWPORT m_viewport;
+D3D12_RECT     m_scissorRect;
+Microsoft::WRL::ComPtr<IDXGISwapChain3> m_swapChain;
+Microsoft::WRL::ComPtr<ID3D12Device> m_device;
+Microsoft::WRL::ComPtr<ID3D12Resource> m_renderTargets[FRAME_COUNT];
+Microsoft::WRL::ComPtr<ID3D12CommandAllocator> m_commandAllocator;
+Microsoft::WRL::ComPtr<ID3D12CommandQueue> m_commandQueue;
+Microsoft::WRL::ComPtr<ID3D12RootSignature> m_rootSignature;
+Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
+Microsoft::WRL::ComPtr<ID3D12PipelineState> m_pipelineState;
+Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> m_commandList;
+UINT m_rtvDescriptorSize;
+
+// Application resources
+Microsoft::WRL::ComPtr<ID3D12Resource> m_vertexBuffer;
+D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
+
+// Synchronization objects
+UINT m_frameIndex;
+HANDLE m_fenceEvent;
+Microsoft::WRL::ComPtr<ID3D12Fence> m_fence;
+UINT64 m_fenceValue;
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
   // Destroying application
@@ -45,9 +81,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
     default:
       return DefWindowProc(hWnd, message, wParam, lParam);
   }
+  // Just to not have warning here
+  return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
 int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+  // Create and register class
   WNDCLASSEX wc = {
     sizeof(WNDCLASSEX),
     CS_HREDRAW|CS_VREDRAW,
