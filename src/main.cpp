@@ -16,6 +16,8 @@
 #include <DirectXMath.h>
 
 #include <string>
+#include <cstdio>
+#include <stdexcept>
 #include <wrl.h>
 
 #pragma comment(lib, "d3d12.lib")
@@ -33,10 +35,12 @@ struct Vertex {
 
 // DirectX3D variables
 #define FRAME_COUNT 2
+#define _DEBUG
+static bool m_useWarpDevice = false; // WARP stands for Windows Advanced Rasterization Platform - software renderer, basically
 
 // DirectX3D objects
-static UINT width = 1280;
-static UINT height = 720;
+static UINT m_width = 1280;
+static UINT m_height = 720;
 static std::wstring name = L"Box Delivery - engine.";
 
 // Pipeline objects
@@ -62,6 +66,33 @@ UINT m_frameIndex;
 HANDLE m_fenceEvent;
 Microsoft::WRL::ComPtr<ID3D12Fence> m_fence;
 UINT64 m_fenceValue;
+
+// Helper functions for C-->C++ interoperability by Microsoft
+inline void ThrowIfFailed(HRESULT hr) {
+  if (FAILED(hr)) {
+    throw std::runtime_error("Failed HRESULT");
+  }
+}
+
+// Helper function - getting hardware adapter
+void GetHardwareAdapter(IDXGIFactory4* pFactory, IDXGIAdapter1** ppAdapter) {
+  *ppAdapter = nullptr;
+  for (UINT adapterIndex = 0; ; ++adapterIndex) {
+      IDXGIAdapter1* pAdapter = nullptr;
+      if (DXGI_ERROR_NOT_FOUND == pFactory->EnumAdapters1(adapterIndex, &pAdapter)) {
+          // No more adapters to enumerate.
+          break;
+      } 
+
+      // Check to see if the adapter supports Direct3D 12, but don't create the
+      // actual device yet.
+      if (SUCCEEDED(D3D12CreateDevice(pAdapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr))) {
+          *ppAdapter = pAdapter;
+          return;
+      }
+      pAdapter->Release();
+  }
+}
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
   // Destroying application
@@ -119,6 +150,75 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
       );
   ShowWindow(hwnd, nCmdShow);
 
+  // Initialization - pipeline
+  // Enabling debug layer - debug messages into parent process console
+#if defined(_DEBUG)
+    AttachConsole(ATTACH_PARENT_PROCESS); // TODO: check if attaching to console fails
+    FILE* fp;
+    freopen_s(&fp, "CONOUT$", "w", stdout);
+    freopen_s(&fp, "CONOUT$", "w", stderr);
+    freopen_s(&fp, "CONIN$", "w", stdin);
+
+    printf("Debug enabled!\n"); // TODO: create more elaborate debug message with __FILE__ and __LINE__ if it's possible (maybe macro?)
+#endif
+
+  // Enabling the D3D12 debug layer
+#if defined(_DEBUG)
+    {
+      Microsoft::WRL::ComPtr<ID3D12Debug> debugController;
+      if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
+      {
+        debugController->EnableDebugLayer();
+      }
+    }
+#endif
+
+  // Creating factory
+  Microsoft::WRL::ComPtr<IDXGIFactory4> factory;
+  ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&factory)));
+
+  // Creating device
+  if (m_useWarpDevice) {
+    // TODO: put code for software renderer here - right now we work on our GPU hardware, so no code here
+  } else {
+    Microsoft::WRL::ComPtr<IDXGIAdapter1> hardwareAdapter;
+    GetHardwareAdapter(factory.Get(), &hardwareAdapter);
+
+    ThrowIfFailed(D3D12CreateDevice(
+      hardwareAdapter.Get(),
+      D3D_FEATURE_LEVEL_11_0,
+      IID_PPV_ARGS(&m_device)));
+  }
+  // Initialization - describing and creating the command queue
+  D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+  queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+  queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+
+  ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
+
+  // Initialization - describing and creating the swap chain
+  DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
+  swapChainDesc.BufferCount = FRAME_COUNT;
+  swapChainDesc.BufferDesc.Width = m_width;
+  swapChainDesc.BufferDesc.Height = m_height;
+  swapChainDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+  swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+  swapChainDesc.OutputWindow = hwnd;
+  swapChainDesc.SampleDesc.Count = 1;
+  swapChainDesc.Windowed = TRUE;
+
+  Microsoft::WRL::ComPtr<IDXGISwapChain> swapChain;
+  ThrowIfFailed(factory->CreateSwapChain(
+        m_commandQueue.Get(),
+        &swapChainDesc,
+        &swapChain
+    ));
+
+  ThrowIfFailed(swapChain.As(&m_swapChain));
+
+  // Initialization - loading assets - Hello World Triangle for now
+
   // Main loop
   MSG msg = {};
 
@@ -128,6 +228,9 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
       DispatchMessage(&msg);
     }
   }
+
+  // All went well message for those pesky segfaults without notification on WinOS
+  printf("All went well - goodbye...\n"); // TODO: This message interfere with normal console flow - fix that
   return (int) msg.wParam;
 }
 
