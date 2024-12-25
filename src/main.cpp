@@ -18,17 +18,33 @@
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 
+// Non defined keys definitions
+#define VK_Q 0x51
+
+// DirectX3D variables
 #define FRAME_COUNT 2
 
 // DirectX3D objects
 
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-  if (message == WM_DESTROY) {
-    PostQuitMessage(0);
-    return 0;
+  // Destroying application
+  switch (message) {
+    case WM_DESTROY: {
+        PostQuitMessage(0);
+        return 0;
+      }
+      break;
+    case WM_KEYDOWN: {
+        if (wParam == VK_Q) { // VK_Q
+          PostQuitMessage(0);
+          return 0;
+        }
+      }
+      break;
+    default:
+      return DefWindowProc(hWnd, message, wParam, lParam);
   }
-  return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
 int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
