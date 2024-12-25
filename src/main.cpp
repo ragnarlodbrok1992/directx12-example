@@ -11,11 +11,12 @@
 #include <Windows.h>
 #include <stdint.h>
 // #include <d3d12.h>
-#include <dxgi1_6.h>
-// #include <d3dcompiler.h>
-
 #include "directx/d3d12.h"
 #include "directx/d3dx12.h"
+#include "directx/d3dcommon.h"
+#include <dxgi1_6.h>
+#include <d3dcompiler.h>
+
 #include <DirectXMath.h>
 
 #include <string>
@@ -23,9 +24,8 @@
 #include <stdexcept>
 #include <wrl.h>
 
-#pragma comment(lib, "d3d12.lib")
-#pragma comment(lib, "dxgi.lib")
-#pragma comment(lib, "d3dcompiler.lib")
+// Engine stuff
+std::wstring m_assetsPath = L"assets/";
 
 // Non defined keys definitions
 #define VK_Q 0x51
@@ -75,6 +75,11 @@ inline void ThrowIfFailed(HRESULT hr) {
   if (FAILED(hr)) {
     throw std::runtime_error("Failed HRESULT");
   }
+}
+
+// Helper function - assets // TODO: create a assets manager
+std::wstring GetAssetFullPath(LPCWSTR assetName) {
+  return m_assetsPath + assetName;
 }
 
 // Helper function - getting hardware adapter
@@ -250,6 +255,60 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
   ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
 
   // Loading assets - Hello World Triangle for now
+
+  // Creating empy root signature
+  {
+    CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
+    rootSignatureDesc.Init(0, nullptr, 0, nullptr,
+        D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+    Microsoft::WRL::ComPtr<ID3DBlob> signature;
+    Microsoft::WRL::ComPtr<ID3DBlob> error;
+    ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
+    ThrowIfFailed(m_device->CreateRootSignature(0,
+          signature->GetBufferPointer(),
+          signature->GetBufferSize(),
+          IID_PPV_ARGS(&m_rootSignature)));
+  }
+
+  // Create the pipline state - includes compiling and loading shaders
+  {
+    Microsoft::WRL::ComPtr<ID3DBlob> vertexShader;
+    Microsoft::WRL::ComPtr<ID3DBlob> pixelShader;
+
+#if defined(_DEBUG)
+    // Enable better shader debugging with the graphics debugging tools
+    UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#else
+    UINT compileFlags = 0;
+#endif
+
+    ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"shaders.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr));
+    ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"shaders.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, nullptr));
+
+    // Define the vertex input layout
+    D3D12_INPUT_ELEMENT_DESC inputElementDesc[] = {
+      {"POSITON", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
+    };
+
+    // Describe and create the graphics pipeline state object (PSO).
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.InputLayout = {inputElementDesc, _countof(inputElementDesc)};
+    psoDesc.pRootSignature = m_rootSignature.Get();
+    psoDesc.VS = {reinterpret_cast<UINT8*>(vertexShader->GetBufferPointer()), vertexShader->GetBufferSize()};
+    psoDesc.PS = {reinterpret_cast<UINT8*>(pixelShader->GetBufferPointer()), pixelShader->GetBufferSize()};
+    // psoDesc.
+    // psoDesc.
+    // psoDesc.
+    // psoDesc.
+    // psoDesc.
+    // psoDesc.
+    // psoDesc.
+    // psoDesc.
+    // psoDesc.
+  }
+
 
   // Main loop
   MSG msg = {};
