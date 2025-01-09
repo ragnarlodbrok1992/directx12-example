@@ -478,10 +478,13 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
   MSG msg = {};
 
   while (msg.message != WM_QUIT) {
+    // Windows messages thing
     if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
       TranslateMessage(&msg);
       DispatchMessage(&msg);
     }
+
+    // Rendering goes here
   }
 
   // All went well message for those pesky segfaults without notification on WinOS
