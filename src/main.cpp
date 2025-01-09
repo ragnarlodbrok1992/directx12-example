@@ -370,7 +370,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     try {
     ThrowIfFailed(D3DCompile(shadersCode, strlen(shadersCode),
           nullptr, nullptr, nullptr,
-          "PSMain", "vs_5_0", compileFlags, 0,
+          "PSMain", "ps_5_0", compileFlags, 0, // @Hint: ps_5_0 selects what kind of shader is being compiled
           &pixelShader, &pixelShaderErrorBlob));
     // TODO: add compilation errors check for pixel shader
     } catch (const std::runtime_error& e) {
@@ -388,7 +388,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
     // Define the vertex input layout
     D3D12_INPUT_ELEMENT_DESC inputElementDesc[] = {
-      {"POSITON", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
       {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
     };
 
