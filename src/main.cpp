@@ -92,6 +92,27 @@ const char* shadersCode = R"(
   }
 )";
 
+// Helper function - copying error messages (from shaders for example) to clipboard
+void CopyToClipboard(HWND hWnd, const std::string& text) {
+  if (!OpenClipboard(hWnd)) return;
+
+  EmptyClipboard();
+
+  // Allocate global memory for the text
+  size_t sizeInBytes = (text.size() + 1) * sizeof(char);
+  HGLOBAL hGlobal = GlobalAlloc(GMEM_MOVEABLE, sizeInBytes);
+  if (hGlobal) {
+    void* pGlobal = GlobalLock(hGlobal);
+    memcpy(pGlobal, text.c_str(), sizeInBytes);
+    GlobalUnlock(hGlobal);
+
+    // Transferring data to clipboard
+    SetClipboardData(CF_TEXT, hGlobal);
+  }
+
+  CloseClipboard();
+}
+
 // Helper functions for C-->C++ interoperability by Microsoft
 inline void ThrowIfFailed(HRESULT hr) {
   if (FAILED(hr)) {
@@ -317,6 +338,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
   {
     Microsoft::WRL::ComPtr<ID3DBlob> vertexShader;
     Microsoft::WRL::ComPtr<ID3DBlob> pixelShader;
+    Microsoft::WRL::ComPtr<ID3DBlob> vertexShaderErrorBlob;
+    Microsoft::WRL::ComPtr<ID3DBlob> pixelShaderErrorBlob;
 
 #if defined(_DEBUG)
     // Enable better shader debugging with the graphics debugging tools
@@ -325,8 +348,43 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     UINT compileFlags = 0;
 #endif
 
-    ThrowIfFailed(D3DCompile(shadersCode, strlen(shadersCode), nullptr, nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr));
-    ThrowIfFailed(D3DCompile(shadersCode, strlen(shadersCode), nullptr, nullptr, nullptr, "PSMain", "vs_5_0", compileFlags, 0, &pixelShader, nullptr));
+    try {
+    ThrowIfFailed(D3DCompile(shadersCode, strlen(shadersCode),
+          nullptr, nullptr, nullptr,
+          "VSMain", "vs_5_0", compileFlags, 0,
+          &vertexShader, &vertexShaderErrorBlob));
+    } catch (const std::runtime_error& e) {
+      MessageBoxA(
+        nullptr,
+        e.what(),
+        "Exception caught!",
+        MB_OK | MB_ICONERROR
+      );
+      // Getting information from pixelShaderErrorBlob
+      const char* errorMessage = static_cast<const char*>(vertexShaderErrorBlob->GetBufferPointer());
+      MessageBoxA(nullptr, errorMessage, "Error blob message:", MB_OK);
+      CopyToClipboard(hwnd, errorMessage);
+    }
+
+
+    try {
+    ThrowIfFailed(D3DCompile(shadersCode, strlen(shadersCode),
+          nullptr, nullptr, nullptr,
+          "PSMain", "vs_5_0", compileFlags, 0,
+          &pixelShader, &pixelShaderErrorBlob));
+    // TODO: add compilation errors check for pixel shader
+    } catch (const std::runtime_error& e) {
+      MessageBoxA(
+        nullptr,
+        e.what(),
+        "Exception caught!",
+        MB_OK | MB_ICONERROR
+      );
+      // Getting information from pixelShaderErrorBlob
+      const char* errorMessage = static_cast<const char*>(pixelShaderErrorBlob->GetBufferPointer());
+      MessageBoxA(nullptr, errorMessage, "Error blob message:", MB_OK);
+      CopyToClipboard(hwnd, errorMessage);
+    }
 
     // Define the vertex input layout
     D3D12_INPUT_ELEMENT_DESC inputElementDesc[] = {
