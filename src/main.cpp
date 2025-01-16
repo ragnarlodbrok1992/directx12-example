@@ -32,7 +32,7 @@ std::wstring m_assetsPath = L"assets/";
 
 // DirectX3D types
 struct Vertex {
-  DirectX::XMFLOAT3 positon;
+  DirectX::XMFLOAT3 position;
   DirectX::XMFLOAT4 color;
 };
 
@@ -46,6 +46,7 @@ static UINT m_width = 1280;
 static UINT m_height = 720;
 static float m_aspectRatio = static_cast<float>(m_width) / static_cast<float>(m_height);
 static std::wstring name = L"Box Delivery - engine.";
+static bool main_loop = true;
 
 // Pipeline objects
 D3D12_VIEWPORT m_viewport;
@@ -163,6 +164,38 @@ void WaitForPreviousFrame() {
   m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 }
 
+// Helper function - PopulateCommandList
+void PopulateCommandList() {
+  ThrowIfFailed(m_commandAllocator->Reset());
+
+  ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
+
+  m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+  m_commandList->RSSetViewports(1, &m_viewport);
+  m_commandList->RSSetScissorRects(1, &m_scissorRect);
+
+  auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
+      D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+  m_commandList->ResourceBarrier(1, &barrier);
+
+  CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+  m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
+  // Rendering goes here - commands for DirectX.
+  const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+  m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+  m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
+  m_commandList->DrawInstanced(3, 1, 0, 0);
+
+  // Moving backbuffer to the front.
+  barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(),
+      D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+  m_commandList->ResourceBarrier(1, &barrier);
+
+  ThrowIfFailed(m_commandList->Close());
+}
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
   // Destroying application
   switch (message) {
@@ -173,7 +206,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
       break;
     case WM_KEYDOWN: {
         if (wParam == VK_Q) { // VK_Q
-          PostQuitMessage(0);
+          // PostQuitMessage(0);
+          main_loop = false;
           return 0;
         }
       }
@@ -477,7 +511,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
   // Main loop
   MSG msg = {};
 
-  while (msg.message != WM_QUIT) {
+  while (main_loop) {
     // Windows messages thing
     if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
       TranslateMessage(&msg);
@@ -485,7 +519,21 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     }
 
     // Rendering goes here
+    PopulateCommandList();
+
+    ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
+    m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+
+    // Present the frame.
+    ThrowIfFailed(m_swapChain->Present(1, 0));
+
+    WaitForPreviousFrame();
   }
+
+  // On destroy - after main loop
+  WaitForPreviousFrame();
+
+  CloseHandle(m_fenceEvent);
 
   // All went well message for those pesky segfaults without notification on WinOS
 #if 0
