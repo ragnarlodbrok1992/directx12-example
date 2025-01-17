@@ -511,6 +511,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
   // Main loop
   MSG msg = {};
   m_scissorRect = { 0, 0, static_cast<LONG>(m_width), static_cast<LONG>(m_height) };
+  m_viewport = { 0, 0, static_cast<FLOAT>(m_width), static_cast<FLOAT>(m_height) };
 
   while (main_loop) {
     // Windows messages thing
