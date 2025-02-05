@@ -31,6 +31,7 @@ std::wstring m_assetsPath = L"assets/";
 #define VK_Q 0x51
 
 // DirectX3D types
+// Types - move to it's own file
 struct Vertex {
   DirectX::XMFLOAT3 position;
   DirectX::XMFLOAT4 color;
@@ -221,6 +222,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
   // Create and register class
+  // Creating window classes ---------- LEAVE IN THE MAIN
   WNDCLASSEX wc = {
     sizeof(WNDCLASSEX),
     CS_HREDRAW|CS_VREDRAW,
@@ -253,6 +255,9 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
       );
   ShowWindow(hwnd, nCmdShow);
 
+  // END LEAVING IN THE MAIN
+
+  // Initialization - move to different file
   // Initialization - pipeline
   // Enabling debug layer - debug messages into parent process console
 #if defined(_DEBUG)
@@ -454,6 +459,11 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
   // Command lists are created in the recording state, but there is nothing to record yet. The main loop expects it to be close, so close it now
   ThrowIfFailed(m_commandList->Close());
 
+  m_scissorRect = { 0, 0, static_cast<LONG>(m_width), static_cast<LONG>(m_height) };
+  m_viewport = { 0, 0, static_cast<FLOAT>(m_width), static_cast<FLOAT>(m_height) };
+  // Initialization - end
+
+  // Creating triangle to render - move to a different file
   // Create the vertex buffer
   {
     // Define the geometry for a triangle
@@ -490,8 +500,10 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     m_vertexBufferView.StrideInBytes = sizeof(Vertex);
     m_vertexBufferView.SizeInBytes = vertexBufferSize;
   }
+  // End of creation of triangle
 
   // Create synchronization objects and wait until assets have been uploaded to the GPU.
+  // Synchronization object - fencing - should run after creating a triangle?
   {
     ThrowIfFailed(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
     m_fenceValue = 1;
@@ -510,8 +522,6 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
   // Main loop
   MSG msg = {};
-  m_scissorRect = { 0, 0, static_cast<LONG>(m_width), static_cast<LONG>(m_height) };
-  m_viewport = { 0, 0, static_cast<FLOAT>(m_width), static_cast<FLOAT>(m_height) };
 
   while (main_loop) {
     // Windows messages thing
